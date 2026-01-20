@@ -95,9 +95,22 @@ public class CachedPlane {
         this.myChunks = new Chunk[this.cx_size][this.cz_size];
         this.myColumns = new Column[this.x_size][this.z_size];
 
+        //old code
+//        this.verticalBits = 0;
+//        for (int cy = 0; cy < cy_size; cy++) {
+//            this.verticalBits |= 1 << (minCY + cy);
+//        }
+        // --- 修正後 ---
         this.verticalBits = 0;
-        for (int cy = 0; cy < cy_size; cy++) {
-            this.verticalBits |= 1 << (minCY + cy);
+        // Cubic Chunks環境または負の座標への対応
+        if (this.world.getClass().getName().contains("cubicchunks") || minCY < 0 || (minCY + cy_size) > 16) {
+            // 負の座標やバニラ範囲外の場合、全てのビットを立てて安全側に倒す
+            this.verticalBits = -1;
+        } else {
+            // 通常のバニラ範囲内（0-255）でのみビット演算を行う
+            for (int cy = 0; cy < cy_size; cy++) {
+                this.verticalBits |= 1 << (minCY + cy);
+            }
         }
 
         for (int x = 0; x < this.x_size; x++) {
@@ -310,7 +323,7 @@ public class CachedPlane {
 
                 final Chunk c = this.myChunks[x][z];
 
-                for (int y = 1; y < 255; y += 32) {
+                for (int y = this.y_offset; y < (this.y_offset + this.y_size); y += 32) {
                     WorldData.instance().compassData().service().updateArea(this.getWorld(), c.x << 4, y, c.z << 4);
                 }
 
