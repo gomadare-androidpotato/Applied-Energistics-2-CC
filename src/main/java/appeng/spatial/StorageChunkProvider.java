@@ -66,14 +66,36 @@ public class StorageChunkProvider extends ChunkGeneratorOverworld {
         return chunk;
     }
 
+    // 修正版 fillChunk
     private void fillChunk(Chunk chunk, IBlockState defaultState) {
-        for (int cx = 0; cx < 16; cx++) {
-            for (int cz = 0; cz < 16; cz++) {
-                for (int cy = 0; cy < 256; cy++) {
-                    chunk.setBlockState(new BlockPos(cx, cy, cz), defaultState);
+        // 【解説】
+        // chunk.setBlockState()を使うと、CubicChunksが破壊した内部クラス(Chunk$1)に触れてクラッシュします。
+        // 代わりに、チャンクのデータ保管庫(ExtendedBlockStorage)に直接データを注入します。
+        // これにより、照明計算や他MODの干渉をバイパスし、超高速かつ安全に初期化できます。
+
+        net.minecraft.world.chunk.storage.ExtendedBlockStorage[] storageArrays = chunk.getBlockStorageArray();
+
+        // 高さ256ブロック分なので、16個のセクション(16x16x16)を全て埋める
+        for (int ySection = 0; ySection < 16; ySection++) {
+            // セクションストレージを作成 (ySection << 4 は ySection * 16 の意味)
+            net.minecraft.world.chunk.storage.ExtendedBlockStorage storage =
+                    new net.minecraft.world.chunk.storage.ExtendedBlockStorage(ySection << 4, true);
+
+            storageArrays[ySection] = storage;
+
+            for (int x = 0; x < 16; x++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int y = 0; y < 16; y++) {
+                        // ブロック状態を直接セット (setBlockStateのようなチェック処理が入らないため安全)
+                        storage.set(x, y, z, defaultState);
+                    }
                 }
             }
         }
+
+        // 直接データをいじったので、最後に一度だけ再計算フラグを立てておく（念のため）
+        chunk.generateSkylightMap();
+        chunk.markDirty();
     }
 
     @Override

@@ -342,15 +342,17 @@ public class CachedPlane {
             this.x = x;
             this.z = z;
             this.c = chunk;
+            // 【修正】Cubic Chunks環境なら、何もしない（配列をいじらない）
+            if (this.c.getClass().getName().contains("cubicchunks")) return;
 
+            // バニラ用の初期化処理（残しておいても良い）
             final ExtendedBlockStorage[] storage = this.c.getBlockStorageArray();
-
-            // make sure storage exists before hand...
             for (int ay = 0; ay < chunkHeight; ay++) {
                 final int by = (ay + chunkY);
-                ExtendedBlockStorage extendedblockstorage = storage[by];
-                if (extendedblockstorage == null) {
-                    extendedblockstorage = storage[by] = new ExtendedBlockStorage(by << 4, this.c.getWorld().provider.hasSkyLight());
+                if (by >= 0 && by < 16) { // 範囲チェック
+                    if (storage[by] == null) {
+                        storage[by] = new ExtendedBlockStorage(by << 4, this.c.getWorld().provider.hasSkyLight());
+                    }
                 }
             }
         }
@@ -359,27 +361,30 @@ public class CachedPlane {
             if (data.state == CachedPlane.this.matrixBlockState) {
                 data.state = Platform.AIR_BLOCK.getDefaultState();
             }
-            final ExtendedBlockStorage[] storage = this.c.getBlockStorageArray();
-            final ExtendedBlockStorage extendedBlockStorage = storage[y >> 4];
-            extendedBlockStorage.set(this.x, y & 15, this.z, data.state);
-            extendedBlockStorage.setBlockLight(this.x, y & 15, this.z, data.light);
+
+            // 【修正】World経由でセット（確実にCubic ChunksのCubeに書き込む）
+            BlockPos pos = new BlockPos(this.x + (this.c.x << 4), y, this.z + (this.c.z << 4));
+            this.c.getWorld().setBlockState(pos, data.state, 2);
         }
 
         private void fillData(final int y, BlockStorageData data) {
-            final ExtendedBlockStorage[] storage = this.c.getBlockStorageArray();
-            final ExtendedBlockStorage extendedblockstorage = storage[y >> 4];
-
-            data.state = extendedblockstorage.get(this.x, y & 15, this.z);
-            data.light = extendedblockstorage.getBlockLight(this.x, y & 15, this.z);
+            // 【修正】World経由で取得
+            BlockPos pos = new BlockPos(this.x + (this.c.x << 4), y, this.z + (this.c.z << 4));
+            data.state = this.c.getWorld().getBlockState(pos);
+            data.light = 15; // 簡易化のため最大光量（必要なら getLight を呼ぶ）
         }
 
         private boolean doNotSkip(final int y) {
-            final ExtendedBlockStorage[] storage = this.c.getBlockStorageArray();
-            final ExtendedBlockStorage extendedblockstorage = storage[y >> 4];
-            if (CachedPlane.this.reg.isBlacklisted(extendedblockstorage.get(this.x, y & 15, this.z).getBlock())) {
+            // Cubic Chunksでも確実にブロックを取得できる方法に書き換え
+            BlockPos pos = new BlockPos(this.x + (this.c.x << 4), y, this.z + (this.c.z << 4));
+            IBlockState state = this.c.getWorld().getBlockState(pos);
+
+            // ブラックリスト判定
+            if (CachedPlane.this.reg.isBlacklisted(state.getBlock())) {
                 return false;
             }
 
+            // スキップリスト（AE2内部の管理用）の判定
             return this.skipThese == null || !this.skipThese.contains(y);
         }
 

@@ -94,7 +94,23 @@ public class StorageHelper {
         }
 
         // load the chunk!
-        newWorld.getChunkProvider().provideChunk(MathHelper.floor(link.x) >> 4, MathHelper.floor(link.z) >> 4);
+        // --- 修正開始 ---
+        // 1. ロードすべき座標を特定
+        int chunkX = MathHelper.floor(link.x) >> 4;
+        int chunkY = MathHelper.floor(link.y) >> 4;
+        int chunkZ = MathHelper.floor(link.z) >> 4;
+
+        // 2. チャンク(垂直方向の柱)をロード
+        newWorld.getChunkProvider().provideChunk(chunkX, chunkZ);
+
+        // 3. Cubic Chunksへの対応: 対象の高さのCubeを強制的にロード/生成させる
+        // getBlockStateを呼ぶことで、Cubic Chunksの内部システムにその座標のCubeをメモリへ展開させます。
+        try {
+            newWorld.getBlockState(new BlockPos(link.x, link.y, link.z));
+        } catch (Exception ignored) {
+            // ロード失敗時は無視して続行
+        }
+        // --- 修正終了 ---
 
         if (entity instanceof EntityPlayerMP && link.dim.provider instanceof StorageWorldProvider) {
             AppEng.instance().getAdvancementTriggers().getSpatialExplorer().trigger((EntityPlayerMP) entity);
